@@ -29,8 +29,8 @@ interface ActionButtonProps {
 // Create an interface for stored data
 interface StoredData {
   lastVisitDate: string;
+  streak: number;
   todos: Todo[];
-  dailyTip: number;
   goals: Goal[];
 }
 
@@ -42,7 +42,7 @@ interface DailyTip {
 export default function Home() {
   const [quote, setQuote] = useState({ text: '', author: '' })
   const [isLoading, setIsLoading] = useState(true)
-  const [dailyStreak, setDailyStreak] = useState(1)
+  const [dailyStreak, setDailyStreak] = useState(0)
   const [lastVisit, setLastVisit] = useState<string | null>(null)
   const [showTodoModal, setShowTodoModal] = useState(false)
   const [todos, setTodos] = useState<Todo[]>([])
@@ -175,51 +175,59 @@ export default function Home() {
   }
 
   useEffect(() => {
-    // Load data from localStorage and check if it's a new day
-    const loadStoredData = () => {
+    // Load and update streak
+    const updateStreak = () => {
       const storedData = localStorage.getItem('journeyData');
       const today = new Date().toDateString();
 
       if (storedData) {
         const data: StoredData = JSON.parse(storedData);
         
-        // If it's a new day
         if (data.lastVisitDate !== today) {
-          // Reset todos
-          setTodos([]);
+          // Check if last visit was yesterday
+          const lastVisit = new Date(data.lastVisitDate);
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
           
-          // Update daily tip
-          const newTipIndex = (dailyTips.indexOf(currentTip) + 1) % dailyTips.length;
-          setCurrentTip(dailyTips[newTipIndex]);
-          
-          // Update streak
-          setDailyStreak(prev => prev + 1);
-          
-          // Save new state
-          localStorage.setItem('journeyData', JSON.stringify({
-            lastVisitDate: today,
-            todos: [],
-            dailyTip: newTipIndex,
-            goals: goals
-          }));
+          if (lastVisit.toDateString() === yesterday.toDateString()) {
+            // Increment streak if last visit was yesterday
+            const newStreak = (data.streak || 0) + 1;
+            setDailyStreak(newStreak);
+            
+            // Update stored data
+            localStorage.setItem('journeyData', JSON.stringify({
+              ...data,
+              lastVisitDate: today,
+              streak: newStreak,
+              todos: [] // Reset todos for new day
+            }));
+          } else {
+            // Reset streak if missed a day
+            setDailyStreak(1);
+            localStorage.setItem('journeyData', JSON.stringify({
+              ...data,
+              lastVisitDate: today,
+              streak: 1,
+              todos: []
+            }));
+          }
         } else {
-          // Same day - load existing data
-          setTodos(data.todos);
-          setCurrentTip(dailyTips[data.dailyTip]);
-          setGoals(data.goals);
+          // Same day - keep current streak
+          setDailyStreak(data.streak || 1);
         }
       } else {
-        // First visit
+        // First visit ever
+        setDailyStreak(1);
         localStorage.setItem('journeyData', JSON.stringify({
           lastVisitDate: today,
+          streak: 1,
           todos: [],
-          dailyTip: 0,
-          goals: goals
+          goals: []
         }));
       }
     };
 
-    loadStoredData();
+    updateStreak();
   }, []);
 
   // Update localStorage whenever todos or goals change
